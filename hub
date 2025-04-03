@@ -1,263 +1,263 @@
-local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
-local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
-local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+local a=loadstring(game:HttpGetAsync"https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau")()
+local b=loadstring(game:HttpGetAsync"https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau")()
+local c=loadstring(game:HttpGetAsync"https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau")()
 
--- Window Setup
-local Window = Library:CreateWindow{
-    Title = "Jiro Hub v1.0",
-    SubTitle = "Blade Ball Mastery",
-    TabWidth = 180,
-    Size = UDim2.fromOffset(900, 600),
-    Resize = true,
-    MinSize = Vector2.new(500, 400),
-    Acrylic = false,
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.RightControl
+
+local d=a:CreateWindow{
+Title="Jiro Hub v1.0",
+SubTitle="Blade Ball Mastery",
+TabWidth=180,
+Size=UDim2.fromOffset(900,600),
+Resize=true,
+MinSize=Vector2.new(500,400),
+Acrylic=false,
+Theme="Dark",
+MinimizeKey=Enum.KeyCode.RightControl
 }
 
-local Tabs = {
-    Main = Window:CreateTab{
-        Title = "Exploits",
-        Icon = "sword"
-    },
-    Settings = Window:CreateTab{
-        Title = "Settings",
-        Icon = "settings"
-    }
+local e={
+Main=d:CreateTab{
+Title="Exploits",
+Icon="sword"
+},
+Settings=d:CreateTab{
+Title="Settings",
+Icon="settings"
+}
 }
 
-local Options = Library.Options
+local f=a.Options
 
--- Notify on load
-Library:Notify{
-    Title = "Jiro Hub Loaded",
-    Content = "Ready to dominate Blade Ball.",
-    Icon = "check-circle",
-    Duration = 5
+
+a:Notify{
+Title="Jiro Hub Loaded",
+Content="Ready to dominate Blade Ball.",
+Icon="check-circle",
+Duration=5
 }
 
--- Exploit Features
-local autoParryEnabled = false
-local autoSpamEnabled = false
-local parryDistance = 15
-local spamRate = 0.1
-local lastParryTime = 0
-local lastNotifyTime = 0
-local parryRemote = nil
 
--- Input Simulation (for Auto Spam and Fallback)
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local g=false
+local h=false
+local i=15
+local j=0.1
+local k=0
+local l=0
+local m
+
+
+local n=game:GetService"VirtualInputManager"
 
 local function simulateFKey()
-    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-    task.wait(0.01)
-    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+n:SendKeyEvent(true,Enum.KeyCode.F,false,game)
+task.wait(0.01)
+n:SendKeyEvent(false,Enum.KeyCode.F,false,game)
 end
 
 local function simulateLeftClick()
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-    task.wait(0.01)
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+n:SendMouseButtonEvent(0,0,0,true,game,0)
+task.wait(0.01)
+n:SendMouseButtonEvent(0,0,0,false,game,0)
 end
 
--- Find the parry remote dynamically
+
 do
-    local remotes = game.ReplicatedStorage:WaitForChild("Remotes")
-    for _, remote in pairs(remotes:GetChildren()) do
-        if remote:IsA("RemoteEvent") and string.find(remote.Name:lower(), "parry") then
-            parryRemote = remote
-            break
-        end
-    end
-    if not parryRemote then
-        parryRemote = remotes:WaitForChild("ParryButtonPress", 5)
-    end
+local o=game.ReplicatedStorage:WaitForChild"Remotes"
+for p,q in pairs(o:GetChildren())do
+if q:IsA"RemoteEvent"and string.find(q.Name:lower(),"parry")then
+m=q
+break
+end
+end
+if not m then
+m=o:WaitForChild("ParryButtonPress",5)
+end
 end
 
--- Estimate ping (rough approximation)
+
 local function getPing()
-    local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000 -- Convert ms to seconds
-    return ping
+local o=game:GetService"Stats".Network.ServerStatsItem["Data Ping"]:GetValue()/1000
+return o
 end
 
--- Auto Parry Logic with Predictive Timing
+
 local function startAutoParry()
-    if not autoParryEnabled then return end
-    local player = game.Players.LocalPlayer
-    local ballsFolder = game.Workspace:WaitForChild("Balls")
-    local connection
+if not g then return end
+local o=game.Players.LocalPlayer
+local p=game.Workspace:WaitForChild"Balls"
+local q
 
-    connection = game:GetService("RunService").Stepped:Connect(function(_, deltaTime)
-        if not autoParryEnabled then
-            connection:Disconnect()
-            return
-        end
-
-        local character = player.Character
-        if not character or not character:FindFirstChild("HumanoidRootPart") or character.Humanoid.Health <= 0 then
-            return -- Skip if dead
-        end
-
-        local currentTime = tick()
-        if currentTime - lastParryTime < 0.2 + math.random(0.05, 0.1) then
-            return -- Random cooldown
-        end
-
-        local rootPart = character.HumanoidRootPart
-        local closestBall = nil
-        local minDistance = parryDistance + 5
-
-        for _, ball in pairs(ballsFolder:GetChildren()) do
-            if ball:IsA("BasePart") then
-                local target = ball:FindFirstChild("Target")
-                local isReal = ball:GetAttribute("realBall")
-                local distance = (rootPart.Position - ball.Position).Magnitude
-
-                if (isReal or (target and target.Value == player.Name)) and distance < minDistance then
-                    closestBall = ball
-                    minDistance = distance
-                end
-            end
-        end
-
-        if closestBall then
-            local ballVelocity = closestBall.Velocity
-            local ballSpeed = ballVelocity.Magnitude
-            local ping = getPing()
-            
-            -- Predictive parry: calculate where the ball will be
-            local pingOffset = ping * 1.5 -- Scale ping to overshoot
-            local futurePosition = closestBall.Position + ballVelocity * (pingOffset + 0.2) -- Predict 0.2s ahead + ping
-            local futureDistance = (rootPart.Position - futurePosition).Magnitude
-            local speedFactor = math.clamp(ballSpeed / 100, 1, 5) -- Scale timing with speed (100 studs/sec = 1x, 500 = 5x)
-            local baseTimeToImpact = 0.8 -- Base window for low-speed balls
-            local speedThreshold = 200 -- Extra early parry for very fast balls
-            local extraTime = ballSpeed > speedThreshold and 0.5 or 0 -- Add 0.5 seconds for ultra-fast balls
-            local adjustedTimeToImpact = (baseTimeToImpact * speedFactor + pingOffset + extraTime)
-
-            local timeToImpact = (rootPart.Position - closestBall.Position).Magnitude / math.max(ballSpeed, 1)
-
-            if timeToImpact <= adjustedTimeToImpact and futureDistance <= parryDistance then
-                task.delay(math.random(0.01, 0.03), function()
-                    simulateLeftClick()
-                    if parryRemote then
-                        pcall(function()
-                            parryRemote:FireServer()
-                        end)
-                    end
-                end)
-                lastParryTime = currentTime
-                -- Throttle parry notification to once every 2 seconds
-                if currentTime - lastNotifyTime >= 2 then
-                    Library:Notify{
-                        Title = "Auto Parry",
-                        Content = "Parried!",
-                        Icon = "bell",
-                        Duration = 1
-                    }
-                    lastNotifyTime = currentTime
-                end
-            end
-        end
-    end)
+q=game:GetService"RunService".Stepped:Connect(function(r,s)
+if not g then
+q:Disconnect()
+return
 end
 
--- Auto Spam Logic
+local t=o.Character
+if not t or not t:FindFirstChild"HumanoidRootPart"or t.Humanoid.Health<=0 then
+return
+end
+
+local u=tick()
+if u-k<0.2+math.random(0.05,0.1)then
+return
+end
+
+local v=t.HumanoidRootPart
+local w
+local x=i+5
+
+for y,z in pairs(p:GetChildren())do
+if z:IsA"BasePart"then
+local A=z:FindFirstChild"Target"
+local B=z:GetAttribute"realBall"
+local C=(v.Position-z.Position).Magnitude
+
+if(B or(A and A.Value==o.Name))and C<x then
+w=z
+x=C
+end
+end
+end
+
+if w then
+local y=w.Velocity
+local z=y.Magnitude
+local A=getPing()
+
+
+local B=A*1.5
+local C=w.Position+y*(B+0.2)
+local D=(v.Position-C).Magnitude
+local E=math.clamp(z/100,1,5)
+local F=0.8
+local G=200
+local H=z>G and 0.5 or 0
+local I=(F*E+B+H)
+
+local J=(v.Position-w.Position).Magnitude/math.max(z,1)
+
+if J<=I and D<=i then
+task.delay(math.random(0.01,0.03),function()
+simulateLeftClick()
+if m then
+pcall(function()
+m:FireServer()
+end)
+end
+end)
+k=u
+
+if u-l>=2 then
+a:Notify{
+Title="Auto Parry",
+Content="Parried!",
+Icon="bell",
+Duration=1
+}
+l=u
+end
+end
+end
+end)
+end
+
+
 local function startAutoSpam()
-    if not autoSpamEnabled then return end
-    task.spawn(function()
-        while autoSpamEnabled do
-            simulateFKey()
-            task.wait(spamRate + math.random(0.01, 0.03))
-        end
-    end)
+if not h then return end
+task.spawn(function()
+while h do
+simulateFKey()
+task.wait(j+math.random(0.01,0.03))
+end
+end)
 end
 
--- Main Tab UI
-Tabs.Main:CreateParagraph("Welcome", {
-    Title = "Jiro Hub",
-    Content = "Professional Blade Ball exploitation tool.\nStay sharp, stay ahead.",
-    TitleAlignment = "Middle",
-    ContentAlignment = Enum.TextXAlignment.Center
+
+e.Main:CreateParagraph("Welcome",{
+Title="Jiro Hub",
+Content="Professional Blade Ball exploitation tool.\nStay sharp, stay ahead.",
+TitleAlignment="Middle",
+ContentAlignment=Enum.TextXAlignment.Center
 })
 
--- Auto Parry Toggle
-local AutoParryToggle = Tabs.Main:CreateToggle("AutoParryToggle", {
-    Title = "AutoParry",
-    Description = "Automatically parries the ball when in range.",
-    Default = false
+
+local o=e.Main:CreateToggle("AutoParryToggle",{
+Title="AutoParry",
+Description="Automatically parries the ball when in range.",
+Default=false
 })
-AutoParryToggle:OnChanged(function()
-    autoParryEnabled = Options.AutoParryToggle.Value
-    if autoParryEnabled then startAutoParry() end
-    Library:Notify{
-        Title = "Auto Parry",
-        Content = autoParryEnabled and "Enabled" or "Disabled",
-        Icon = autoParryEnabled and "shield-check" or "shield-off",
-        Duration = 3
-    }
+o:OnChanged(function()
+g=f.AutoParryToggle.Value
+if g then startAutoParry()end
+a:Notify{
+Title="Auto Parry",
+Content=g and"Enabled"or"Disabled",
+Icon=g and"shield-check"or"shield-off",
+Duration=3
+}
 end)
 
--- Parry Distance Slider
-local ParryDistanceSlider = Tabs.Main:CreateSlider("ParryDistance", {
-    Title = "Parry Distance",
-    Description = "Distance to trigger auto parry (studs).",
-    Default = 15,
-    Min = 5,
-    Max = 30,
-    Rounding = 1,
-    Callback = function(Value)
-        parryDistance = Value
-    end
+
+e.Main:CreateSlider("ParryDistance",{
+Title="Parry Distance",
+Description="Distance to trigger auto parry (studs).",
+Default=15,
+Min=5,
+Max=30,
+Rounding=1,
+Callback=function(p)
+i=p
+end
 })
 
--- Auto Spam Toggle
-local AutoSpamToggle = Tabs.Main:CreateToggle("AutoSpamToggle", {
-    Title = "Auto Spam",
-    Description = "Spams parry with F key at set intervals.",
-    Default = false
+
+local p=e.Main:CreateToggle("AutoSpamToggle",{
+Title="Auto Spam",
+Description="Spams parry with F key at set intervals.",
+Default=false
 })
-AutoSpamToggle:OnChanged(function()
-    autoSpamEnabled = Options.AutoSpamToggle.Value
-    if autoSpamEnabled then startAutoSpam() end
-    Library:Notify{
-        Title = "Auto Spam",
-        Content = autoSpamEnabled and "Enabled" or "Disabled",
-        Icon = autoSpamEnabled and "zap" or "zap-off",
-        Duration = 3
-    }
+p:OnChanged(function()
+h=f.AutoSpamToggle.Value
+if h then startAutoSpam()end
+a:Notify{
+Title="Auto Spam",
+Content=h and"Enabled"or"Disabled",
+Icon=h and"zap"or"zap-off",
+Duration=3
+}
 end)
 
--- Spam Rate Slider
-local SpamRateSlider = Tabs.Main:CreateSlider("SpamRate", {
-    Title = "Spam Rate",
-    Description = "Interval between spam actions (seconds).",
-    Default = 0.1,
-    Min = 0.05,
-    Max = 0.5,
-    Rounding = 2,
-    Callback = function(Value)
-        spamRate = Value
-    end
+
+e.Main:CreateSlider("SpamRate",{
+Title="Spam Rate",
+Description="Interval between spam actions (seconds).",
+Default=0.1,
+Min=0.05,
+Max=0.5,
+Rounding=2,
+Callback=function(q)
+j=q
+end
 })
 
--- Settings Tab
-SaveManager:SetLibrary(Library)
-InterfaceManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes{}
-InterfaceManager:SetFolder("JiroHub")
-SaveManager:SetFolder("JiroHub/BladeBall")
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
 
-Window:SelectTab(1)
-SaveManager:LoadAutoloadConfig()
+b:SetLibrary(a)
+c:SetLibrary(a)
+b:IgnoreThemeSettings()
+b:SetIgnoreIndexes{}
+c:SetFolder"JiroHub"
+b:SetFolder"JiroHub/BladeBall"
+c:BuildInterfaceSection(e.Settings)
+b:BuildConfigSection(e.Settings)
 
--- Final Notification
-Library:Notify{
-    Title = "Initialization Complete",
-    Content = "Jiro Hub is fully operational.",
-    Icon = "power",
-    Duration = 6
+d:SelectTab(1)
+b:LoadAutoloadConfig()
+
+
+a:Notify{
+Title="Initialization Complete",
+Content="Jiro Hub is fully operational.",
+Icon="power",
+Duration=6
 }
